@@ -1,5 +1,6 @@
 const s3 = require('../middleware/createS3Client');
 const {PutObjectCommand} = require('@aws-sdk/client-s3');
+const extractAudioWav = require('../middleware/extractAudio');
 
 const handleVideoUpload = async (req, res) => {
     try {
@@ -18,10 +19,15 @@ const handleVideoUpload = async (req, res) => {
         })
       );
 
-      res.json({
-        message: "Uploaded to S3",
-        s3Key: key
+      const wavBuffer = await extractAudioWav(req.file.buffer);
+
+      res.set({
+        "Content-Type" : "audio/wav",
+        "Content-Disposition": "attachment"
       });
+
+      res.send(wavBuffer);
+      
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Upload failed" });
