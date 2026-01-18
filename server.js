@@ -34,7 +34,7 @@ app.get('/myfile', (req, res) => {
 });
 
 
-app.use('/upload', require('./routes/video.js'));
+app.use('/upload', require('./routes/upload.js'));
 
 
 mongoose.connection.once('open', () => {
