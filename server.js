@@ -34,6 +34,9 @@ app.get('/myfile', (req, res) => {
 });
 
 
+app.use('/upload', require('./routes/video.js'));
+
+
 mongoose.connection.once('open', () => {
   console.log('Server connected to database');
   app.listen(PORT, () => {
