@@ -34,7 +34,7 @@ app.use('/upload', require('./routes/upload.js'));
 
 mongoose.connection.once('open', () => {
   console.log('Server connected to database');
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0",() => {
     console.log(`Server running in the port ${PORT}`);
   });
 });
