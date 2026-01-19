@@ -28,11 +28,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"))
 });
 
-app.get('/myfile', (req, res) => {
-  console.log('request came');
-  res.sendFile('myfile.html');
-});
-
 
 app.use('/upload', require('./routes/upload.js'));
 
