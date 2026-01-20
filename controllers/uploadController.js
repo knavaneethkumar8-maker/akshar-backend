@@ -84,5 +84,27 @@ const handleTextGridUpload = async (req, res) => {
     console.error(err);
   }
 }
+const handleGridUpload = async (req, res) => {
+  try {
+    if(!req.params.gridId) {
+      return res.status(400).json({"message" : "gridId missing"});
+    }
+    if(!req.body) {
+      return res.status(400).json({"message" : "body is missing"});
+    }
+    const gridId = req.params.gridId;
+    const fileName = gridId + ".json";
+    const jsonGridData = JSON.stringify(req.body, null, 2);
+    const uploadDirPath = path.join(__dirname, "..", "uploads", "grids");
 
-module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload};
+    if(!fs.existsSync(uploadDirPath)) {
+      await fsPromises.mkdir(uploadDirPath,{recursive : true});
+    }
+    await fsPromises.writeFile( path.join(uploadDirPath, fileName), jsonGridData, "utf8");
+    res.status(200).json({"message" : `successfully stored the grid ${fileName}`});
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload};
