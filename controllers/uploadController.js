@@ -1,6 +1,6 @@
 const s3 = require('../middleware/createS3Client');
 const {PutObjectCommand} = require('@aws-sdk/client-s3');
-const extractAudioWav = require('../middleware/extractAudio');
+const extractAudioWavFromPath = require('../middleware/extractAudio');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
@@ -10,57 +10,67 @@ const handleVideoUpload = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-    const fileName = req.params.fileName;
-    const key = `videos/${Date.now()}-${fileName}`;
+
+    const localVideoPath = req.file.path;
+    const s3Key = `videos/${path.basename(localVideoPath)}`;
 
     await s3.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
-        Key: key,
-        Body: req.file.buffer,        //  video bytes
+        Key: s3Key,
+        Body: fs.createReadStream(localVideoPath),
         ContentType: req.file.mimetype
       })
     );
 
-    const wavBuffer = await extractAudioWav(req.file.buffer);
+    const wavBuffer = await extractAudioWavFromPath(localVideoPath);
 
     res.set({
-      "Content-Type" : "audio/wav",
-      "Content-Disposition": "attachment"
+      "Content-Type": "audio/wav",
+      "Content-Disposition": "attachment; filename=audio.wav"
     });
 
     res.send(wavBuffer);
-    
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Upload failed" });
   }
-}
+};
+
 
 const handleAudioUpload = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-    const fileName = req.params.fileName;
-    const key = `audios/${Date.now()}-${fileName}`;
+
+    const filePath = req.file.path;      // disk file
+    const fileStream = fs.createReadStream(filePath);
+
+    const s3Key = `audios/${Date.now()}-${req.file.originalname}`;
 
     await s3.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
-        Key: key,
-        Body: req.file.buffer,        // 👈 video bytes
-        ContentType: req.file.mimetype
+        Key: s3Key,
+        Body: fileStream,
+        ContentType: req.file.mimetype,
       })
     );
 
-    res.status(200).json({"message" : "successfully uploaded the audio"});
-    
+    return res.status(200).json({
+      message: "File stored on disk and uploaded to S3",
+      localPath: filePath,
+      s3Key,
+    });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Upload failed" });
   }
-}
+};
+
 
 const handleTextGridUpload = async (req, res) => {
   try {

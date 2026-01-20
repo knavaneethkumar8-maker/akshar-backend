@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload} = require('../controllers/uploadController');
-const upload = require('../middleware/multerStorage');
+const diskStorage = require('../middleware/multerStorage');
 const storeFile = require('../middleware/multerMemoryStorage');
 
 
-router.post('/video/:fileName', storeFile.single("video"), handleVideoUpload);
-router.post('/audio/:fileName', storeFile.single("audio"), handleAudioUpload);
+router.post('/video/:fileName', diskStorage.single("video"), handleVideoUpload);
+router.post('/audio/:fileName',diskStorage.single("audio"),handleAudioUpload);
 router.put('/textgrids/:fileName', handleTextGridUpload);
 router.put('/grids/:gridId', handleGridUpload);
 

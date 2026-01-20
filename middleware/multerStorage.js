@@ -5,20 +5,25 @@ const path = require('path');
 
 const storage = multer.diskStorage({
   destination : async (req, file, cb) => {
-    if(file.fieldname === "video") {
-      const videoDir = path.join(__dirname, "..", "uploads", "video");
-      if(!fs.existsSync(videoDir)) {
-        await fsPromies.mkdir(videoDir);
+    try {
+
+      if(file.fieldname === "video") {
+        const videoDir = path.join(__dirname, "..", "uploads", "video");
+        if(!fs.existsSync(videoDir)) {
+          await fsPromies.mkdir(videoDir, {recursive : true});
+        }
+        cb(null, videoDir);
+      } else if(file.fieldname === "audio") {
+        const audioDir = path.join(__dirname, "..", "uploads", "audio");
+        if(!fs.existsSync(audioDir)) {
+          await fsPromies.mkdir(audioDir, {recursive:true});
+        }
+        cb(null, audioDir);
+      } else {
+        cb(new Error('Unexpected field name'));
       }
-      cb(null, videoDir);
-    } else if(file.fieldname === "audio") {
-      const audioDir = path.join(__dirname, "..", "uploads", "audio");
-      if(!fs.existsSync(audioDir)) {
-        await fsPromies.mkdir(audioDir);
-      }
-      cb(null, audioDir);
-    } else {
-      cb(new Error('Unexpected field name'));
+    } catch(err) {
+      console.error(err);
     }
   },
   filename : (req, file, cb) => {
@@ -27,6 +32,6 @@ const storage = multer.diskStorage({
 });
 
 
-const upload = multer({storage});
+const diskStore = multer({storage});
 
-module.exports = upload;
+module.exports = diskStore;
