@@ -28,14 +28,33 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"))
 });
 
-
 app.use('/upload', require('./routes/upload.js'));
 
+app.use((err, req, res, next) => {
+  console.error(err.stack || err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(500).json({
+    message: "Something went wrong"
+  });
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection:", reason);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection:", reason);
+});
 
 mongoose.connection.once('open', () => {
   console.log('Server connected to database');
-  app.listen(PORT, "0.0.0.0",() => {
-    console.log(`Server running in the port ${PORT}`);
-  });
+});
+
+app.listen(PORT, "0.0.0.0",() => {
+  console.log(`Server running in the port ${PORT}`);
 });
 
