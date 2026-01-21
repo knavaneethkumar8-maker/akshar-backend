@@ -1,7 +1,5 @@
 const allowedOrigins = [
-  'http://127.0.0.1:5500',
-  'http://127.0.0.1:5505',
-  'https://akshar-neon.vercel.app'
+  'https://api.xn--l2bot2c0c.com'
 ]
 
 module.exports = allowedOrigins;
