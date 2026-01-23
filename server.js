@@ -42,8 +42,8 @@ app.use('/upload', require('./routes/upload.js'));
 app.use('/auth', require('./routes/auth.js'));
 app.use('/', require('./routes/userUploads.js'));
 app.use("/api/users", require('./routes/getUsers.js'));
-
-
+app.use("/api", require('./routes/loadRecordings.js'));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 
 app.use((err, req, res, next) => {
