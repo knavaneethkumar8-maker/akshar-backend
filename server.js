@@ -8,6 +8,7 @@ const connectDB = require('./config/dbConn');
 const cors = require('cors');
 const corsOptions = require('./config/corsConfig');
 const logger = require('./middleware/logEvents');
+const session = require('express-session');
 
 dotenv.config();
 const PORT = process.env.PORT || 3500;
@@ -21,6 +22,15 @@ app.use(express.urlencoded({ limit : "50mb",extended : false}));
 app.use(logger);
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.use(session({
+  secret: "super-secret-key",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: "lax"
+  }
+}));
 //middleware
 
 app.get('/', (req, res) => {
@@ -29,6 +39,14 @@ app.get('/', (req, res) => {
 });
 
 app.use('/upload', require('./routes/upload.js'));
+app.use('/auth', require('./routes/auth.js'));
+app.use('/', require('./routes/userUploads.js'));
+
+
+
+
+
+
 
 app.use((err, req, res, next) => {
   console.error(err.stack || err);
@@ -40,10 +58,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     message: "Something went wrong"
   });
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection:", reason);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
