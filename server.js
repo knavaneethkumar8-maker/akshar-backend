@@ -41,9 +41,7 @@ app.get('/', (req, res) => {
 app.use('/upload', require('./routes/upload.js'));
 app.use('/auth', require('./routes/auth.js'));
 app.use('/', require('./routes/userUploads.js'));
-
-
-
+app.use("/api/users", require('./routes/getUsers.js'));
 
 
 
