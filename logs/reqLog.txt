@@ -83,3 +83,10 @@ Saturday January 2026 19:13 	 undefined /uploads/nithin/recordings/audio_2026_01
 Saturday January 2026 19:13 	 undefined /uploads/nithin/recordings/audio_2026_01_24_19_13_29_1329.wav GET 
 Saturday January 2026 19:13 	 undefined /uploads/nithin/recordings/audio_2026_01_24_19_13_38_1338.wav GET 
 Saturday January 2026 19:13 	 undefined /upload/nithin/textgrids/audio_2026_01_24_19_13_38_1338.wav PUT 
+Saturday January 2026 19:16 	 undefined /api/users GET 
+Saturday January 2026 19:29 	 undefined /api/users GET 
+Saturday January 2026 19:29 	 undefined /auth/login POST 
+Saturday January 2026 19:29 	 undefined /auth/signup POST 
+Saturday January 2026 19:29 	 undefined /auth/login POST 
+Saturday January 2026 19:29 	 undefined /api/users GET 
+Saturday January 2026 19:29 	 undefined /auth/login POST 
