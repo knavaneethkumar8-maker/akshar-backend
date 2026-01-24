@@ -117,4 +117,53 @@ const handleGridUpload = async (req, res) => {
   }
 }
 
-module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload};
+const handleUserTextGridUpload = async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const username = req.params.username;
+
+    if (!username) {
+      return res.status(401).json({ message: "unauthorized" });
+    }
+
+    if (!fileName) {
+      return res.status(400).json({ message: "filename missing" });
+    }
+
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ message: "body is missing" });
+    }
+
+    const cleanFileName = path.parse(fileName).name + ".json";
+
+    const uploadDirPath = path.join(
+      __dirname,
+      "..",
+      "uploads",
+      username,
+      "textgrids"
+    );
+
+    // ensure directory exists
+    await fsPromises.mkdir(uploadDirPath, { recursive: true });
+
+    const filePath = path.join(uploadDirPath, cleanFileName);
+    await fsPromises.writeFile(
+      filePath,
+      JSON.stringify(req.body, null, 2),
+      "utf8"
+    );
+
+    res.status(200).json({
+      message: "Textgrid stored successfully",
+      path: `${username}/textgrids/${cleanFileName}`
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to store textgrid" });
+  }
+};
+
+
+module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload, handleUserTextGridUpload};
