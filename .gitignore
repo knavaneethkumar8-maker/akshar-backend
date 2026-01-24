@@ -4,3 +4,4 @@ uploads
 db/users.json
 temp
 logs
+logs/reqLog.txt
