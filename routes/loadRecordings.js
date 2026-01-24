@@ -4,14 +4,12 @@ const path = require("path");
 
 const router = express.Router();
 
-
+/* helper */
 function parseRecordedAt(value) {
-  // ISO format → safe
   if (!value.includes("/")) {
     return new Date(value);
   }
 
-  // "23/01/2026, 20:36:48"
   const [datePart, timePart] = value.split(", ");
   const [day, month, year] = datePart.split("/").map(Number);
   const [hours, minutes, seconds] = timePart.split(":").map(Number);
@@ -19,7 +17,7 @@ function parseRecordedAt(value) {
   return new Date(year, month - 1, day, hours, minutes, seconds);
 }
 
-
+/* route */
 router.get("/recordings", (req, res) => {
   const { user, time } = req.query;
   if (!user) return res.status(400).json({ error: "User required" });
@@ -28,19 +26,17 @@ router.get("/recordings", (req, res) => {
     __dirname,
     `../uploads/${user}/recordings/metadata.json`
   );
-  console.log(metaPath);
 
   if (!fs.existsSync(metaPath)) {
-    console.log('does not exist path');
     return res.json([]);
   }
 
-  let data = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
-
+  const data = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
   const now = new Date();
 
   const filtered = data.filter(item => {
     const recordedDate = parseRecordedAt(item.recordedAt);
+
     if (time === "today") {
       return recordedDate.toDateString() === now.toDateString();
     }
@@ -59,7 +55,6 @@ router.get("/recordings", (req, res) => {
 
     return true;
   });
-  console.log(filtered);
 
   res.json(filtered);
 });

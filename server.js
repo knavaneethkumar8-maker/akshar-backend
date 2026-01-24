@@ -38,12 +38,26 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"))
 });
 
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"), {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith(".wav")) {
+        res.setHeader("Content-Type", "audio/wav");
+      }
+      if (filePath.endsWith(".mp4")) {
+        res.setHeader("Content-Type", "audio/mp4");
+      }
+    }
+  })
+);
+
 app.use('/upload', require('./routes/upload.js'));
 app.use('/auth', require('./routes/auth.js'));
 app.use('/', require('./routes/userUploads.js'));
 app.use("/api/users", require('./routes/getUsers.js'));
 app.use("/api", require('./routes/loadRecordings.js'));
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 
 
 app.use((err, req, res, next) => {
