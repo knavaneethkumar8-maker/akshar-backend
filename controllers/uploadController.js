@@ -154,6 +154,9 @@ const handleUserTextGridUpload = async (req, res) => {
       "utf8"
     );
 
+    console.log(req.body.metadata.file_name);
+    markRecordingAsFinished(username ,fileName);
+
     res.status(200).json({
       message: "Textgrid stored successfully",
       path: `${username}/textgrids/${cleanFileName}`
@@ -164,6 +167,29 @@ const handleUserTextGridUpload = async (req, res) => {
     res.status(500).json({ message: "Failed to store textgrid" });
   }
 };
+
+
+
+//Helpers
+
+function markRecordingAsFinished(username, targetFilename) {
+  const recordingsDir = path.join(process.cwd(), "uploads",`${username}`,  "recordings");
+  const filePath = path.join(recordingsDir, "metadata.json");
+  console.log(filePath);
+  const recordings = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  console.log(recordings);
+
+  const record = recordings.find(r => r.filename === targetFilename);
+  if (!record) {
+    console.log("Recording not found");
+    return;
+  }
+
+  record.status = "FINISHED";
+
+  fs.writeFileSync(filePath, JSON.stringify(recordings, null, 2));
+}
+
 
 
 module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload, handleUserTextGridUpload};
