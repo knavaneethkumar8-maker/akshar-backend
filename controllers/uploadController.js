@@ -63,45 +63,77 @@ const handleAudioUpload = async (req, res) => {
     const filePath = req.file.path;
     const fileName = req.file.filename;
 
-    // 🔹 Get duration (backend only)
+    if (!fs.existsSync(filePath)) {
+      throw new Error("Audio file missing on disk");
+    }
+
     const durationSeconds = await getAudioDurationInSeconds(filePath);
     const durationMs = Math.round(durationSeconds * 1000);
 
-    // 🔹 Upload audio to S3
-    const s3Key = `audios/${Date.now()}-${req.file.originalname}`;
+    const audioS3Key = `audios/${Date.now()}-${req.file.originalname}`;
 
     await s3.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
-        Key: s3Key,
+        Key: audioS3Key,
         Body: fs.createReadStream(filePath),
         ContentType: req.file.mimetype
       })
     );
 
-    // 🔹 Generate grids JSON
-    const grids = generateGridsForAudio({
-      fileName,
-      durationMs
-    });
+    const grids = generateGridsForAudio({ fileName, durationMs });
 
     const audioMetadata = buildAudioMetadata({
       fileName,
       durationMs,
-      s3Key
+      s3Key: audioS3Key
     });
 
+    const audioJson = { metadata: audioMetadata, grids };
+
+    const jsonPath = await saveAudioJsonToFile({ audioJson, fileName });
+
+    if (!jsonPath || !fs.existsSync(jsonPath)) {
+      throw new Error("JSON file creation failed");
+    }
+
+    const baseName = path.parse(fileName).name;
+    const jsonS3Key = `audios/${Date.now()}-${baseName}.json`;
+    console.log(jsonS3Key + "before");
+
+    const jsonContent = await fs.promises.readFile(jsonPath, "utf8");
+
+    const controller = new AbortController();
+
+    setTimeout(() => controller.abort(), 10000);
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: jsonS3Key,
+        Body: fs.createReadStream(jsonPath),
+        ContentType: "application/json"
+      })
+    );
+
+
+    console.log('success'); 
+
     res.status(200).json({
-      message: "Audio uploaded, grids generated",
-      audio: audioMetadata,
-      grids
+      message: "Upload successful",
+      audio: audioS3Key,
+      json: jsonS3Key
     });
 
   } catch (err) {
     console.error("UPLOAD ERROR:", err);
-    res.status(500).json({ message: "Upload failed" });
+    return res.status(500).json({
+      message: "Upload failed",
+      error: err.message
+    });
   }
 };
+
 
 
 
@@ -307,38 +339,44 @@ function buildAudioMetadata({ fileName, durationMs, s3Key }) {
   };
 }
 
-const text = 'इन तरीकों से आप हिंदी वाक्यों को आसानी से कॉपी-पेस्ट कर सकते हैं।';
 
-function distributeTextToCells(text, grids) {
-  const allCells = [];
+async function saveAudioJsonToFile({ audioJson, fileName }) {
+  const jsonDir = path.join(__dirname,"..", "uploads", "textgrids");
+  if (!fs.existsSync(jsonDir)) {
+    fs.mkdirSync(jsonDir, { recursive: true });
+  }
 
-  // Flatten all cells across all tiers
-  grids.forEach(grid => {
-    Object.values(grid.tiers).forEach(tier => {
-      tier.cells.forEach(cell => {
-        allCells.push(cell);
-      });
-    });
-  });
+  const jsonFilePath = path.join(
+    jsonDir,
+    fileName.replace(".wav", ".json")
+  );
 
-  const totalCells = allCells.length;
-  const charsPerCell = Math.ceil(text.length / totalCells);
+  fs.writeFileSync(
+    jsonFilePath,
+    JSON.stringify(audioJson, null, 2),
+    "utf8"
+  );
 
-  let charIndex = 0;
-  allCells.forEach(cell => {
-    const slice = text.slice(charIndex, charIndex + charsPerCell);
-    cell.text = slice || "";
-    charIndex += charsPerCell;
-  });
-
-  return grids;
+  return jsonFilePath;
 }
 
 
 
+async function uploadJsonToS3(jsonContent, jsonS3Key) {
+  const controller = new AbortController();
 
+    setTimeout(() => controller.abort(), 10000);
 
-
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: jsonS3Key,
+        Body: jsonContent,
+        ContentType: "application/json"
+      }),
+      { abortSignal: controller.signal }
+    );
+}
 
 
 module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload, handleUserTextGridUpload};
