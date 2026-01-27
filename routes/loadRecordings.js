@@ -6,25 +6,21 @@ const router = express.Router();
 
 /* helper */
 function parseRecordedAt(value) {
-  if (!value.includes("/")) {
-    return new Date(value);
-  }
-
+  // Example: "27/1/2026, 23:39:53"
   const [datePart, timePart] = value.split(", ");
+
   const [day, month, year] = datePart.split("/").map(Number);
   const [hours, minutes, seconds] = timePart.split(":").map(Number);
 
   return new Date(year, month - 1, day, hours, minutes, seconds);
 }
 
+
 /* route */
 router.get("/recordings", (req, res) => {
-  const { user, time } = req.query;
-  if (!user) return res.status(400).json({ error: "User required" });
-
   const metaPath = path.join(
     __dirname,
-    `../uploads/${user}/recordings/metadata.json`
+    "../uploads/recordings/metadata.json"
   );
 
   if (!fs.existsSync(metaPath)) {
@@ -32,31 +28,24 @@ router.get("/recordings", (req, res) => {
   }
 
   const data = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
-  const now = new Date();
 
-  const filtered = data.filter(item => {
-    const recordedDate = parseRecordedAt(item.recordedAt);
+  const result = data
+    // 1️⃣ only NEW recordings
+    .filter(item => item.status === "NEW")
 
-    if (time === "today") {
-      return recordedDate.toDateString() === now.toDateString();
-    }
+    // 2️⃣ latest first
+    .sort((a, b) => {
+      return (
+        parseRecordedAt(b.recordedAt) -
+        parseRecordedAt(a.recordedAt)
+      );
+    })
 
-    if (time === "yesterday") {
-      const y = new Date(now);
-      y.setDate(y.getDate() - 1);
-      return recordedDate.toDateString() === y.toDateString();
-    }
-
-    if (time === "last-week") {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return recordedDate >= weekAgo;
-    }
-
-    return true;
-  });
-
-  res.json(filtered);
+    // 3️⃣ take latest 10
+    .slice(0, 10);
+  console.log(result);
+  res.json(result);
 });
+
 
 module.exports = router;

@@ -441,7 +441,7 @@ async function appendRecordingMetadata({
     status: "NEW"
   };
 
-  recordings.push(newRecord);
+  recordings.unshift(newRecord);
 
   await fs.promises.writeFile(
     metadataPath,
