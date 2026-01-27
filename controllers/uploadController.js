@@ -54,38 +54,55 @@ const handleVideoUpload = async (req, res) => {
   }
 };
 
-
 const handleAudioUpload = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const filePath = req.file.path;      // disk file
-    const fileStream = fs.createReadStream(filePath);
+    const filePath = req.file.path;
+    const fileName = req.file.filename;
 
+    // 🔹 Get duration (backend only)
+    const durationSeconds = await getAudioDurationInSeconds(filePath);
+    const durationMs = Math.round(durationSeconds * 1000);
+
+    // 🔹 Upload audio to S3
     const s3Key = `audios/${Date.now()}-${req.file.originalname}`;
 
     await s3.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
         Key: s3Key,
-        Body: fileStream,
-        ContentType: req.file.mimetype,
+        Body: fs.createReadStream(filePath),
+        ContentType: req.file.mimetype
       })
     );
 
-    return res.status(200).json({
-      message: "File stored on disk and uploaded to S3",
-      localPath: filePath,
-      s3Key,
+    // 🔹 Generate grids JSON
+    const grids = generateGridsForAudio({
+      fileName,
+      durationMs
+    });
+
+    const audioMetadata = buildAudioMetadata({
+      fileName,
+      durationMs,
+      s3Key
+    });
+
+    res.status(200).json({
+      message: "Audio uploaded, grids generated",
+      audio: audioMetadata,
+      grids
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("UPLOAD ERROR:", err);
     res.status(500).json({ message: "Upload failed" });
   }
 };
+
 
 
 
@@ -289,6 +306,34 @@ function buildAudioMetadata({ fileName, durationMs, s3Key }) {
     }
   };
 }
+
+const text = 'इन तरीकों से आप हिंदी वाक्यों को आसानी से कॉपी-पेस्ट कर सकते हैं।';
+
+function distributeTextToCells(text, grids) {
+  const allCells = [];
+
+  // Flatten all cells across all tiers
+  grids.forEach(grid => {
+    Object.values(grid.tiers).forEach(tier => {
+      tier.cells.forEach(cell => {
+        allCells.push(cell);
+      });
+    });
+  });
+
+  const totalCells = allCells.length;
+  const charsPerCell = Math.ceil(text.length / totalCells);
+
+  let charIndex = 0;
+  allCells.forEach(cell => {
+    const slice = text.slice(charIndex, charIndex + charsPerCell);
+    cell.text = slice || "";
+    charIndex += charsPerCell;
+  });
+
+  return grids;
+}
+
 
 
 
