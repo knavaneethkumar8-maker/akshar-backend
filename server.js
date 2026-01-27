@@ -31,8 +31,8 @@ app.use(session({
     sameSite: "lax"
   }
 }));
-//middleware
 
+//middleware
 app.get('/', (req, res) => {
   console.log('request came');
   res.sendFile(path.join(__dirname, "views", "index.html"))
@@ -52,11 +52,14 @@ app.use(
   })
 );
 
+
 app.use('/upload', require('./routes/upload.js'));
 app.use('/auth', require('./routes/auth.js'));
 app.use('/', require('./routes/userUploads.js'));
 app.use("/api/users", require('./routes/getUsers.js'));
 app.use("/api", require('./routes/loadRecordings.js'));
+
+
 
 
 

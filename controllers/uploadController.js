@@ -4,6 +4,22 @@ const extractAudioWavFromPath = require('../middleware/extractAudio');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
+const { getAudioDurationInSeconds } = require("get-audio-duration");
+
+
+const GRID_SIZE_MS = 216;
+
+const TIERS = [
+  { key: "akash", name: "आकाश", cells: 1 },
+  { key: "agni", name: "अग्नि", cells: 2 },
+  { key: "vayu", name: "वायु", cells: 4 },
+  { key: "jal", name: "जल", cells: 8 },
+  { key: "prithvi", name: "पृथ्वी", cells: 24 }
+];
+
+
+
+
 
 const handleVideoUpload = async (req, res) => {
   try {
@@ -70,6 +86,14 @@ const handleAudioUpload = async (req, res) => {
     res.status(500).json({ message: "Upload failed" });
   }
 };
+
+
+
+
+
+
+
+
 
 
 const handleTextGridUpload = async (req, res) => {
@@ -189,6 +213,86 @@ function markRecordingAsFinished(username, targetFilename) {
 
   fs.writeFileSync(filePath, JSON.stringify(recordings, null, 2));
 }
+
+
+function createGrid({ fileName, gridIndex, startMs }) {
+  const endMs = startMs + GRID_SIZE_MS;
+  let globalCellIndex = 1;
+
+  const tiers = {};
+
+  TIERS.forEach((tier, tierIndex) => {
+    const cellDuration = GRID_SIZE_MS / tier.cells;
+
+    const cells = Array.from({ length: tier.cells }).map((_, i) => ({
+      id: `${fileName}_${gridIndex}_${globalCellIndex++}`,
+      index: i + 1,
+      start_ms: Math.round(startMs + i * cellDuration),
+      end_ms: Math.round(startMs + (i + 1) * cellDuration),
+      text: "",
+      conf: 0,
+      status: "NEW",
+      is_locked: false,
+      metadata: {}
+    }));
+
+    tiers[tier.key] = {
+      name: tier.name,
+      index: tierIndex,
+      start_ms: startMs,
+      end_ms: endMs,
+      cells
+    };
+  });
+
+  return {
+    id: `${fileName}_${gridIndex}`,
+    index: gridIndex,
+    start_ms: startMs,
+    end_ms: endMs,
+    status: "NEW",
+    is_locked: false,
+    metadata: {},
+    tiers
+  };
+}
+
+
+function generateGridsForAudio({ fileName, durationMs }) {
+  const totalGrids = Math.ceil(durationMs / GRID_SIZE_MS);
+  const grids = [];
+
+  for (let i = 0; i < totalGrids; i++) {
+    grids.push(
+      createGrid({
+        fileName,
+        gridIndex: i,
+        startMs: i * GRID_SIZE_MS
+      })
+    );
+  }
+
+  return grids;
+}
+
+function buildAudioMetadata({ fileName, durationMs, s3Key }) {
+  return {
+    audio_id: fileName,
+    duration_ms: durationMs,
+    grid_size_ms: GRID_SIZE_MS,
+    total_grids: Math.ceil(durationMs / GRID_SIZE_MS),
+    uploaded_at: new Date().toISOString(),
+    storage: {
+      provider: "s3",
+      bucket: process.env.AWS_BUCKET_NAME,
+      key: s3Key
+    }
+  };
+}
+
+
+
+
 
 
 
