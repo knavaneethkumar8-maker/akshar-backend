@@ -18,16 +18,23 @@ function parseRecordedAt(value) {
 
 /* route */
 router.get("/recordings", (req, res) => {
-  const metaPath = path.join(
+  const recordingsMetaPath = path.join(
     __dirname,
     "../uploads/recordings/metadata.json"
   );
 
-  if (!fs.existsSync(metaPath)) {
+  const textgridsDir = path.join(
+    __dirname,
+    "../uploads/textgrids"
+  );
+
+  if (!fs.existsSync(recordingsMetaPath)) {
     return res.json([]);
   }
 
-  const data = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+  const data = JSON.parse(
+    fs.readFileSync(recordingsMetaPath, "utf-8")
+  );
 
   const result = data
     // 1️⃣ only NEW recordings
@@ -42,10 +49,37 @@ router.get("/recordings", (req, res) => {
     })
 
     // 3️⃣ take latest 10
-    .slice(0, 10);
-  console.log(result);
+    .slice(0, 10)
+
+    // 4️⃣ attach matching textgrid JSON
+    .map(item => {
+      const baseName = path.parse(item.filename).name;
+      const textgridPath = path.join(
+        textgridsDir,
+        `${baseName}.json`
+      );
+
+      let textgrid = null;
+
+      if (fs.existsSync(textgridPath)) {
+        try {
+          textgrid = JSON.parse(
+            fs.readFileSync(textgridPath, "utf-8")
+          );
+        } catch (err) {
+          console.error("Failed to read textgrid:", textgridPath);
+        }
+      }
+
+      return {
+        ...item,
+        textgrid
+      };
+    });
+
   res.json(result);
 });
+
 
 
 module.exports = router;
