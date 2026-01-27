@@ -18,9 +18,6 @@ const TIERS = [
 ];
 
 
-
-
-
 const handleVideoUpload = async (req, res) => {
   try {
     if (!req.file) {
@@ -67,8 +64,20 @@ const handleAudioUpload = async (req, res) => {
       throw new Error("Audio file missing on disk");
     }
 
+    const localRecordingPath = await saveAudioFileToLocal({
+      filePath,
+      fileName
+    });
+
+
     const durationSeconds = await getAudioDurationInSeconds(filePath);
     const durationMs = Math.round(durationSeconds * 1000);
+
+    await appendRecordingMetadata({
+      fileName,
+      durationSeconds,
+      recorder: "username"
+    });
 
     const audioS3Key = `audios/${Date.now()}-${req.file.originalname}`;
 
@@ -335,7 +344,8 @@ function buildAudioMetadata({ fileName, durationMs, s3Key }) {
       provider: "s3",
       bucket: process.env.AWS_BUCKET_NAME,
       key: s3Key
-    }
+    },
+    status : "NEW"
   };
 }
 
@@ -377,6 +387,70 @@ async function uploadJsonToS3(jsonContent, jsonS3Key) {
       { abortSignal: controller.signal }
     );
 }
+
+
+async function saveAudioFileToLocal({ filePath, fileName }) {
+  const recordingsDir = path.join(__dirname, "..", "uploads", "recordings");
+
+  // ensure directory exists
+  if (!fs.existsSync(recordingsDir)) {
+    fs.mkdirSync(recordingsDir, { recursive: true });
+  }
+
+  const targetPath = path.join(recordingsDir, fileName);
+
+  // copy audio file to recordings folder
+  await fs.promises.copyFile(filePath, targetPath);
+
+  return targetPath;
+}
+
+
+function formatDuration(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+async function appendRecordingMetadata({
+  fileName,
+  durationSeconds,
+  recorder = "default"
+}) {
+  const recordingsDir = path.join(__dirname, "..", "uploads", "recordings");
+  const metadataPath = path.join(recordingsDir, "metadata.json");
+
+  // ensure directory exists
+  if (!fs.existsSync(recordingsDir)) {
+    fs.mkdirSync(recordingsDir, { recursive: true });
+  }
+
+  let recordings = [];
+
+  // read existing metadata.json if present
+  if (fs.existsSync(metadataPath)) {
+    const raw = await fs.promises.readFile(metadataPath, "utf8");
+    recordings = JSON.parse(raw);
+  }
+
+  const newRecord = {
+    filename: fileName,
+    duration: formatDuration(durationSeconds),
+    recordedAt: new Date().toLocaleString("en-IN"),
+    recorder,
+    status: "NEW"
+  };
+
+  recordings.push(newRecord);
+
+  await fs.promises.writeFile(
+    metadataPath,
+    JSON.stringify(recordings, null, 2),
+    "utf8"
+  );
+}
+
+
 
 
 module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload, handleUserTextGridUpload};
