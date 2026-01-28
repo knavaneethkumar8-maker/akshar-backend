@@ -289,6 +289,66 @@ const handleGridUpload = async (req, res) => {
 };
 
 
+const handleCellUpload = async (req, res) => {
+  try {
+    if (!req.params.cellId) {
+      return res.status(400).json({ message: "cellId missing" });
+    }
+
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ message: "body is missing" });
+    }
+
+    const cellId = req.params.cellId;
+    const uploadDirPath = path.join(__dirname, "..", "uploads", "cells");
+
+    // ensure directory exists
+    await fsPromises.mkdir(uploadDirPath, { recursive: true });
+
+    // 🔹 detect next version
+    const files = await fsPromises.readdir(uploadDirPath);
+
+    const versionRegex = new RegExp(`^${cellId}(?:_v(\\d+))?\\.json$`);
+
+    let maxVersion = 0;
+
+    for (const file of files) {
+      const match = file.match(versionRegex);
+      if (match) {
+        const version = match[1] ? parseInt(match[1], 10) : 1;
+        maxVersion = Math.max(maxVersion, version);
+      }
+    }
+
+    const nextVersion = maxVersion === 0 ? 1 : maxVersion + 1;
+
+    const finalFileName =
+      nextVersion === 1
+        ? `${cellId}.json`
+        : `${cellId}_v${nextVersion}.json`;
+
+    const filePath = path.join(uploadDirPath, finalFileName);
+
+    await fsPromises.writeFile(
+      filePath,
+      JSON.stringify(req.body, null, 2),
+      "utf8"
+    );
+
+    res.status(200).json({
+      message: "Cell stored successfully",
+      file: finalFileName,
+      version: nextVersion
+    });
+
+  } catch (err) {
+    console.error("CELL UPLOAD ERROR:", err);
+    res.status(500).json({ message: "Failed to store cell" });
+  }
+};
+
+
+
 const handleUserTextGridUpload = async (req, res) => {
   try {
     const { fileName } = req.params;
@@ -545,4 +605,4 @@ async function appendRecordingMetadata({
 
 
 
-module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload, handleUserTextGridUpload};
+module.exports = {handleVideoUpload, handleAudioUpload, handleTextGridUpload, handleGridUpload, handleUserTextGridUpload, handleCellUpload};
