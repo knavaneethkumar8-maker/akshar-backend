@@ -59,19 +59,23 @@ const handleAudioUpload = async (req, res) => {
 
     const filePath = req.file.path;
     const fileName = req.file.filename;
+    console.log('file present');
 
     if (!fs.existsSync(filePath)) {
+      console.log('eror');
       throw new Error("Audio file missing on disk");
     }
 
-    const localRecordingPath = await saveAudioFileToLocal({
+    /*const localRecordingPath = await saveAudioFileToLocal({
       filePath,
       fileName
-    });
+    }); */
 
 
     const durationSeconds = await getAudioDurationInSeconds(filePath);
     const durationMs = Math.round(durationSeconds * 1000);
+
+    console.log(durationMs, durationSeconds)
 
     await appendRecordingMetadata({
       fileName,
@@ -79,16 +83,26 @@ const handleAudioUpload = async (req, res) => {
       recorder: "username"
     });
 
-    const audioS3Key = `audios/${Date.now()}-${req.file.originalname}`;
+    console.log('metadata wrote');
 
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: audioS3Key,
-        Body: fs.createReadStream(filePath),
-        ContentType: req.file.mimetype
-      })
-    );
+    const audioS3Key = `audios/${Date.now()}-${req.file.originalname}`;
+    console.log(audioS3Key);
+    console.log(filePath);
+
+    /* try {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: audioS3Key,
+          Body: fs.createReadStream(filePath),
+          ContentType: req.file.mimetype
+        })
+      );
+      console.log('audio sent to s3 ✅');
+    } catch (err) {
+      console.error('Failed to upload audio to S3:', err);
+    } */
+
 
     const grids = generateGridsForAudio({ fileName, durationMs });
 
@@ -101,6 +115,7 @@ const handleAudioUpload = async (req, res) => {
     const audioJson = { metadata: audioMetadata, grids };
 
     const jsonPath = await saveAudioJsonToFile({ audioJson, fileName });
+    console.log(jsonPath);
 
     if (!jsonPath || !fs.existsSync(jsonPath)) {
       throw new Error("JSON file creation failed");
@@ -111,8 +126,9 @@ const handleAudioUpload = async (req, res) => {
     console.log(jsonS3Key + "before");
 
     const jsonContent = await fs.promises.readFile(jsonPath, "utf8");
+    console.log(jsonContent);
 
-    const controller = new AbortController();
+    /* const controller = new AbortController();
 
     setTimeout(() => controller.abort(), 10000);
 
@@ -123,7 +139,7 @@ const handleAudioUpload = async (req, res) => {
         Body: fs.createReadStream(jsonPath),
         ContentType: "application/json"
       })
-    );
+    ); */
 
 
     console.log('success'); 
@@ -156,48 +172,122 @@ const handleAudioUpload = async (req, res) => {
 
 const handleTextGridUpload = async (req, res) => {
   try {
-    if(!req.params.fileName) {
-      return res.status(400).json({"message" : "filename missing"});
+    if (!req.params.fileName) {
+      return res.status(400).json({ message: "filename missing" });
     }
-    if(!req.body) {
-      return res.status(400).json({"message" : "body is missing"});
+
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ message: "body is missing" });
     }
-    console.log(req.headers);
-    const fileName = path.parse(req.params.fileName).name + ".json";
-    const jsonGridData = JSON.stringify(req.body, null, 2);
+
+    const baseName = path.parse(req.params.fileName).name;
     const uploadDirPath = path.join(__dirname, "..", "uploads", "textgrids");
 
-    if(!fs.existsSync(uploadDirPath)) {
-      await fsPromises.mkdir(uploadDirPath,{recursive : true});
+    // ensure directory exists
+    await fsPromises.mkdir(uploadDirPath, { recursive: true });
+
+    // 🔹 find next version number
+    const files = await fsPromises.readdir(uploadDirPath);
+
+    const versionRegex = new RegExp(`^${baseName}(?:_v(\\d+))?\\.json$`);
+
+    let maxVersion = 0;
+
+    for (const file of files) {
+      const match = file.match(versionRegex);
+      if (match) {
+        const version = match[1] ? parseInt(match[1], 10) : 1;
+        maxVersion = Math.max(maxVersion, version);
+      }
     }
-    await fsPromises.writeFile( path.join(uploadDirPath, fileName), jsonGridData, "utf8");
-    res.status(200).json({"message" : `successfully stored the textgrid ${fileName}`});
+
+    const nextVersion = maxVersion === 0 ? 1 : maxVersion + 1;
+
+    const finalFileName =
+      nextVersion === 1
+        ? `${baseName}.json`
+        : `${baseName}_v${nextVersion}.json`;
+
+    const filePath = path.join(uploadDirPath, finalFileName);
+
+    await fsPromises.writeFile(
+      filePath,
+      JSON.stringify(req.body, null, 2),
+      "utf8"
+    );
+
+    res.status(200).json({
+      message: "Textgrid stored successfully",
+      file: finalFileName,
+      version: nextVersion
+    });
+
   } catch (err) {
-    console.error(err);
+    console.error("TEXTGRID UPLOAD ERROR:", err);
+    res.status(500).json({ message: "Failed to store textgrid" });
   }
-}
+};
+
+
+
 const handleGridUpload = async (req, res) => {
   try {
-    if(!req.params.gridId) {
-      return res.status(400).json({"message" : "gridId missing"});
+    if (!req.params.gridId) {
+      return res.status(400).json({ message: "gridId missing" });
     }
-    if(!req.body) {
-      return res.status(400).json({"message" : "body is missing"});
+
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ message: "body is missing" });
     }
+
     const gridId = req.params.gridId;
-    const fileName = gridId + ".json";
-    const jsonGridData = JSON.stringify(req.body, null, 2);
     const uploadDirPath = path.join(__dirname, "..", "uploads", "grids");
 
-    if(!fs.existsSync(uploadDirPath)) {
-      await fsPromises.mkdir(uploadDirPath,{recursive : true});
+    // ensure directory exists
+    await fsPromises.mkdir(uploadDirPath, { recursive: true });
+
+    // 🔹 detect next version
+    const files = await fsPromises.readdir(uploadDirPath);
+
+    const versionRegex = new RegExp(`^${gridId}(?:_v(\\d+))?\\.json$`);
+
+    let maxVersion = 0;
+
+    for (const file of files) {
+      const match = file.match(versionRegex);
+      if (match) {
+        const version = match[1] ? parseInt(match[1], 10) : 1;
+        maxVersion = Math.max(maxVersion, version);
+      }
     }
-    await fsPromises.writeFile( path.join(uploadDirPath, fileName), jsonGridData, "utf8");
-    res.status(200).json({"message" : `successfully stored the grid ${fileName}`});
+
+    const nextVersion = maxVersion === 0 ? 1 : maxVersion + 1;
+
+    const finalFileName =
+      nextVersion === 1
+        ? `${gridId}.json`
+        : `${gridId}_v${nextVersion}.json`;
+
+    const filePath = path.join(uploadDirPath, finalFileName);
+
+    await fsPromises.writeFile(
+      filePath,
+      JSON.stringify(req.body, null, 2),
+      "utf8"
+    );
+
+    res.status(200).json({
+      message: "Grid stored successfully",
+      file: finalFileName,
+      version: nextVersion
+    });
+
   } catch (err) {
-    console.error(err);
+    console.error("GRID UPLOAD ERROR:", err);
+    res.status(500).json({ message: "Failed to store grid" });
   }
-}
+};
+
 
 const handleUserTextGridUpload = async (req, res) => {
   try {
@@ -274,6 +364,7 @@ function markRecordingAsFinished(username, targetFilename) {
 
 
 function createGrid({ fileName, gridIndex, startMs }) {
+  console.log('creating a grid');
   const endMs = startMs + GRID_SIZE_MS;
   let globalCellIndex = 1;
 
@@ -415,7 +506,7 @@ function formatDuration(seconds) {
 async function appendRecordingMetadata({
   fileName,
   durationSeconds,
-  recorder = "default"
+  recorder = "username"
 }) {
   const recordingsDir = path.join(__dirname, "..", "uploads", "recordings");
   const metadataPath = path.join(recordingsDir, "metadata.json");
@@ -442,6 +533,7 @@ async function appendRecordingMetadata({
   };
 
   recordings.unshift(newRecord);
+  console.log(newRecord);
 
   await fs.promises.writeFile(
     metadataPath,

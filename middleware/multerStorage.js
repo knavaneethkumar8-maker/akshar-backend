@@ -14,10 +14,12 @@ const storage = multer.diskStorage({
         }
         cb(null, videoDir);
       } else if(file.fieldname === "audio") {
-        const audioDir = path.join(__dirname, "..", "uploads", "audio");
+        const audioDir = path.join(__dirname, "..", "uploads", "recordings");
+        console.log('recording storage');
         if(!fs.existsSync(audioDir)) {
           await fsPromies.mkdir(audioDir, {recursive:true});
         }
+        console.log('success storage');
         cb(null, audioDir);
       } else {
         cb(new Error('Unexpected field name'));
