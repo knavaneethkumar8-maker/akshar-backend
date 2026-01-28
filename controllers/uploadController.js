@@ -161,15 +161,6 @@ const handleAudioUpload = async (req, res) => {
 
 
 
-
-
-
-
-
-
-
-
-
 const handleTextGridUpload = async (req, res) => {
   try {
     if (!req.params.fileName) {
@@ -188,7 +179,6 @@ const handleTextGridUpload = async (req, res) => {
 
     // 🔹 find next version number
     const files = await fsPromises.readdir(uploadDirPath);
-
     const versionRegex = new RegExp(`^${baseName}(?:_v(\\d+))?\\.json$`);
 
     let maxVersion = 0;
@@ -216,6 +206,45 @@ const handleTextGridUpload = async (req, res) => {
       "utf8"
     );
 
+    /* --------------------------------------------------
+       🔹 UPDATE RECORDING STATUS → FINISHED
+    -------------------------------------------------- */
+    const metadataPath = path.join(
+      __dirname,
+      "..",
+      "uploads",
+      "recordings",
+      "metadata.json"
+    );
+
+    if (fs.existsSync(metadataPath)) {
+      const metadata = JSON.parse(
+        await fsPromises.readFile(metadataPath, "utf8")
+      );
+
+      const audioFileName = `${baseName}.wav`;
+
+      let updated = false;
+
+      for (const record of metadata) {
+        if (record.filename === audioFileName) {
+          record.status = "FINISHED";
+          updated = true;
+          break;
+        }
+      }
+
+      if (updated) {
+        await fsPromises.writeFile(
+          metadataPath,
+          JSON.stringify(metadata, null, 2),
+          "utf8"
+        );
+      }
+    }
+
+    /* -------------------------------------------------- */
+
     res.status(200).json({
       message: "Textgrid stored successfully",
       file: finalFileName,
@@ -227,6 +256,7 @@ const handleTextGridUpload = async (req, res) => {
     res.status(500).json({ message: "Failed to store textgrid" });
   }
 };
+
 
 
 
