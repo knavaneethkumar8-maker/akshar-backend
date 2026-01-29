@@ -17,8 +17,8 @@ const PORT = process.env.PORT || 3500;
 connectDB();
 app.use(cors(corsOptions));
 app.use(cookieParser());
-app.use(express.json({limit : "50mb"}));
-app.use(express.urlencoded({ limit : "50mb",extended : false}));
+app.use(express.json({limit : "1000mb"}));
+app.use(express.urlencoded({ limit : "1000mb",extended : false}));
 app.use(logger);
 app.use(express.static(path.join(__dirname, 'public')));
 
