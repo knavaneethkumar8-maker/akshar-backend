@@ -466,8 +466,8 @@ function createGrid({ fileName, gridIndex, startMs }) {
       index: i + 1,
       start_ms: Math.round(startMs + i * cellDuration),
       end_ms: Math.round(startMs + (i + 1) * cellDuration),
-      text: "",
-      conf: 0,
+      text: "अ ",
+      conf: 0.80,
       status: "NEW",
       is_locked: false,
       metadata: {}
