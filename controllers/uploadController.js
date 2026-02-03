@@ -242,29 +242,30 @@ const handleTextGridUpload = async (req, res) => {
   }
 };
 
+
 const handleGridUpload = async (req, res) => {
   try {
     if (!req.params.gridId) {
       return res.status(400).json({ message: "gridId missing" });
     }
 
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return res.status(400).json({ message: "body is missing" });
+    if (!req.body || !req.body.id) {
+      return res.status(400).json({ message: "invalid grid body" });
     }
 
     const gridId = req.params.gridId;
-    const uploadDirPath = path.join(__dirname, "..", "uploads", "grids");
+    const collectedGrid = req.body;
 
-    // ensure directory exists
-    await fsPromises.mkdir(uploadDirPath, { recursive: true });
+    /* ===============================
+       1. STORE GRID (VERSIONED)
+       =============================== */
+    const gridDir = path.join(__dirname, "..", "uploads", "grids");
+    await fsPromises.mkdir(gridDir, { recursive: true });
 
-    // 🔹 detect next version
-    const files = await fsPromises.readdir(uploadDirPath);
-
+    const files = await fsPromises.readdir(gridDir);
     const versionRegex = new RegExp(`^${gridId}(?:_v(\\d+))?\\.json$`);
 
     let maxVersion = 0;
-
     for (const file of files) {
       const match = file.match(versionRegex);
       if (match) {
@@ -274,24 +275,55 @@ const handleGridUpload = async (req, res) => {
     }
 
     const nextVersion = maxVersion === 0 ? 1 : maxVersion + 1;
-
-    const finalFileName =
+    const gridFileName =
       nextVersion === 1
         ? `${gridId}.json`
         : `${gridId}_v${nextVersion}.json`;
 
-    const filePath = path.join(uploadDirPath, finalFileName);
-
     await fsPromises.writeFile(
-      filePath,
-      JSON.stringify(req.body, null, 2),
+      path.join(gridDir, gridFileName),
+      JSON.stringify(collectedGrid, null, 2),
       "utf8"
     );
 
+    /* ===============================
+       2. UPDATE GRID IN TEXTGRID
+       =============================== */
+    const audioMatch = gridId.match(/^(audio_.+?)\.wav_/);
+    if (!audioMatch) {
+      return res.status(400).json({ message: "Invalid gridId format" });
+    }
+
+    const audioId = audioMatch[1];
+    const textgridDir = path.join(__dirname, "..", "uploads", "textgrids");
+
+    const textgridFile = await findLatestTextgrid(audioId, textgridDir);
+    const textgridPath = path.join(textgridDir, textgridFile);
+
+    const textgrid = JSON.parse(
+      await fsPromises.readFile(textgridPath, "utf8")
+    );
+
+    const updated = replaceGridInTextgrid(
+      textgrid,
+      gridId,
+      collectedGrid
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Grid not found in TextGrid" });
+    }
+
+    // overwrite same TextGrid file (NO new version)
+    const tmpPath = textgridPath + ".tmp";
+    await fsPromises.writeFile(tmpPath, JSON.stringify(textgrid, null, 2));
+    await fsPromises.rename(tmpPath, textgridPath);
+
     res.status(200).json({
-      message: "Grid stored successfully",
-      file: finalFileName,
-      version: nextVersion
+      message: "Grid stored and TextGrid updated",
+      grid_file: gridFileName,
+      grid_version: nextVersion,
+      textgrid_file: textgridFile
     });
 
   } catch (err) {
@@ -300,29 +332,32 @@ const handleGridUpload = async (req, res) => {
   }
 };
 
+
+
+
 const handleCellUpload = async (req, res) => {
   try {
     if (!req.params.cellId) {
       return res.status(400).json({ message: "cellId missing" });
     }
 
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return res.status(400).json({ message: "body is missing" });
+    if (!req.body || !req.body.cell || !req.body.cell.text) {
+      return res.status(400).json({ message: "invalid body structure" });
     }
 
     const cellId = req.params.cellId;
-    const uploadDirPath = path.join(__dirname, "..", "uploads", "cells");
+    const collectedCell = req.body.cell; // ← your collected cell structure
 
-    // ensure directory exists
-    await fsPromises.mkdir(uploadDirPath, { recursive: true });
+    /* ===============================
+       1. STORE CELL (VERSIONED)
+       =============================== */
+    const cellDir = path.join(__dirname, "..", "uploads", "cells");
+    await fsPromises.mkdir(cellDir, { recursive: true });
 
-    // 🔹 detect next version
-    const files = await fsPromises.readdir(uploadDirPath);
-
+    const files = await fsPromises.readdir(cellDir);
     const versionRegex = new RegExp(`^${cellId}(?:_v(\\d+))?\\.json$`);
 
     let maxVersion = 0;
-
     for (const file of files) {
       const match = file.match(versionRegex);
       if (match) {
@@ -332,24 +367,58 @@ const handleCellUpload = async (req, res) => {
     }
 
     const nextVersion = maxVersion === 0 ? 1 : maxVersion + 1;
-
-    const finalFileName =
+    const cellFileName =
       nextVersion === 1
         ? `${cellId}.json`
         : `${cellId}_v${nextVersion}.json`;
 
-    const filePath = path.join(uploadDirPath, finalFileName);
-
     await fsPromises.writeFile(
-      filePath,
+      path.join(cellDir, cellFileName),
       JSON.stringify(req.body, null, 2),
       "utf8"
     );
 
+    /* ===============================
+       2. UPDATE LATEST TEXTGRID
+       =============================== */
+    const audioMatch = cellId.match(/^(audio_.+?)\.wav_/);
+    if (!audioMatch) {
+      return res.status(400).json({ message: "Invalid cellId format" });
+    }
+
+    const audioId = audioMatch[1];
+    const textgridDir = path.join(__dirname, "..", "uploads", "textgrids");
+
+    const textgridFile = await findLatestTextgrid(audioId, textgridDir);
+    const textgridPath = path.join(textgridDir, textgridFile);
+
+    const textgrid = JSON.parse(
+      await fsPromises.readFile(textgridPath, "utf8")
+    );
+
+    const updated = updateCellTextAndConf(
+      textgrid,
+      cellId,
+      collectedCell.text
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Cell not found in TextGrid" });
+    }
+
+    // atomic overwrite (NO new version)
+    const tmpPath = textgridPath + ".tmp";
+    await fsPromises.writeFile(tmpPath, JSON.stringify(textgrid, null, 2));
+    await fsPromises.rename(tmpPath, textgridPath);
+
+    /* ===============================
+       RESPONSE
+       =============================== */
     res.status(200).json({
-      message: "Cell stored successfully",
-      file: finalFileName,
-      version: nextVersion
+      message: "Cell stored and TextGrid updated",
+      cell_file: cellFileName,
+      cell_version: nextVersion,
+      textgrid_file: textgridFile
     });
 
   } catch (err) {
@@ -357,6 +426,7 @@ const handleCellUpload = async (req, res) => {
     res.status(500).json({ message: "Failed to store cell" });
   }
 };
+
 
 
 
@@ -449,8 +519,8 @@ function createGrid({ fileName, gridIndex, startMs }) {
       index: i + 1,
       start_ms: Math.round(startMs + i * cellDuration),
       end_ms: Math.round(startMs + (i + 1) * cellDuration),
-      text: "अ ",
-      conf: 0.80,
+      text: "",
+      conf: 0,
       status: "NEW",
       is_locked: false,
       metadata: {}
@@ -643,6 +713,30 @@ async function appendRecordingMetadata({
   );
 }
 
+async function findLatestTextgrid(audioId, dirPath) {
+  const files = await fsPromises.readdir(dirPath);
+  const regex = new RegExp(`^${audioId}(?:_v(\\d+))?\\.json$`);
+
+  let latestFile = null;
+  let maxVersion = 0;
+
+  for (const file of files) {
+    const match = file.match(regex);
+    if (!match) continue;
+
+    const version = match[1] ? parseInt(match[1], 10) : 1;
+    if (version >= maxVersion) {
+      maxVersion = version;
+      latestFile = file;
+    }
+  }
+
+  if (!latestFile) {
+    throw new Error("TextGrid not found");
+  }
+
+  return latestFile;
+}
 
 const convertToWav = async (inputPath, wavPath) => {
   await execFileAsync("/opt/homebrew/bin/ffmpeg", [
@@ -653,6 +747,40 @@ const convertToWav = async (inputPath, wavPath) => {
     wavPath
   ]);
 };
+
+function updateCellTextAndConf(textgrid, cellId, newText) {
+  for (const grid of textgrid.grids) {
+    for (const tier of Object.values(grid.tiers)) {
+      if (!Array.isArray(tier.cells)) continue;
+
+      for (const cell of tier.cells) {
+        if (cell.id === cellId) {
+          cell.text = newText;
+          cell.conf = 1;
+          cell.status = "EDITED";
+          cell.is_locked = false;
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function replaceGridInTextgrid(textgrid, gridId, newGrid) {
+  for (let i = 0; i < textgrid.grids.length; i++) {
+    if (textgrid.grids[i].id === gridId) {
+      textgrid.grids[i] = {
+        ...textgrid.grids[i], // keeps position in array
+        ...newGrid            // overwrites all grid fields
+      };
+      return true;
+    }
+  }
+  return false;
+}
+
+
 
 
 
