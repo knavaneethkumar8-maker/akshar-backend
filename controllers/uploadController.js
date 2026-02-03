@@ -5,6 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
 const { getAudioDurationInSeconds } = require("get-audio-duration");
+const { execFile } = require("child_process");
+const util = require("util");
+
+const execFileAsync = util.promisify(execFile);
+
 
 
 const GRID_SIZE_MS = 216;
@@ -57,97 +62,71 @@ const handleAudioUpload = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const filePath = req.file.path;
-    const fileName = req.file.filename;
-    console.log('file present');
+    /* ---------------- PATHS ---------------- */
+    const uploadsRoot = path.resolve("uploads");
+    const recordingsDir = path.join(uploadsRoot, "recordings");
+    fs.mkdirSync(recordingsDir, { recursive: true });
 
-    if (!fs.existsSync(filePath)) {
-      console.log('eror');
-      throw new Error("Audio file missing on disk");
-    }
+    const uploadedPath = req.file.path;
+    const originalName = req.file.originalname;
+    const baseName = path.parse(originalName).name;
 
-    /*const localRecordingPath = await saveAudioFileToLocal({
-      filePath,
-      fileName
-    }); */
+    const tempWavPath = path.join(recordingsDir, `${baseName}_tmp.wav`);
+    const finalWavPath = path.join(recordingsDir, `${baseName}.wav`);
+    const slowed8xPath = path.join(recordingsDir, `${baseName}_8x.wav`);
+    const slowed16xPath = path.join(recordingsDir, `${baseName}_16x.wav`);
 
+    /* ---------------- 1️⃣ Convert to REAL WAV ---------------- */
+    await execFileAsync("/opt/homebrew/bin/ffmpeg", [
+      "-y",
+      "-i", uploadedPath,
+      "-ac", "1",
+      "-ar", "48000",
+      "-c:a", "pcm_s16le",
+      tempWavPath
+    ]);
 
-    const durationSeconds = await getAudioDurationInSeconds(filePath);
+    fs.renameSync(tempWavPath, finalWavPath);
+
+    /* ---------------- 2️⃣ Slowed versions (CORRECT) ---------------- */
+    await slowAudioSox(finalWavPath, slowed8xPath, 8);
+    await slowAudioSox(finalWavPath, slowed16xPath, 16);
+
+    /* ---------------- 3️⃣ Duration ---------------- */
+    const durationSeconds = await getAudioDurationInSeconds(finalWavPath);
     const durationMs = Math.round(durationSeconds * 1000);
 
-    console.log(durationMs, durationSeconds)
-
     await appendRecordingMetadata({
-      fileName,
+      fileName: `${baseName}.wav`,
       durationSeconds,
       recorder: "username"
     });
 
-    console.log('metadata wrote');
-
-    const audioS3Key = `audios/${Date.now()}-${req.file.originalname}`;
-    console.log(audioS3Key);
-    console.log(filePath);
-
-    /* try {
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: process.env.AWS_BUCKET_NAME,
-          Key: audioS3Key,
-          Body: fs.createReadStream(filePath),
-          ContentType: req.file.mimetype
-        })
-      );
-      console.log('audio sent to s3 ✅');
-    } catch (err) {
-      console.error('Failed to upload audio to S3:', err);
-    } */
-
-
-    const grids = generateGridsForAudio({ fileName, durationMs });
-
-    const audioMetadata = buildAudioMetadata({
-      fileName,
-      durationMs,
-      s3Key: audioS3Key
+    const grids = generateGridsForAudio({
+      fileName: `${baseName}.wav`,
+      durationMs
     });
 
-    const audioJson = { metadata: audioMetadata, grids };
+    const audioMetadata = buildAudioMetadata({
+      fileName: `${baseName}.wav`,
+      durationMs,
+      s3Key: null
+    });
 
-    const jsonPath = await saveAudioJsonToFile({ audioJson, fileName });
-    console.log(jsonPath);
+    await saveAudioJsonToFile({
+      audioJson: { metadata: audioMetadata, grids },
+      fileName: `${baseName}.wav`
+    });
 
-    if (!jsonPath || !fs.existsSync(jsonPath)) {
-      throw new Error("JSON file creation failed");
-    }
-
-    const baseName = path.parse(fileName).name;
-    const jsonS3Key = `audios/${Date.now()}-${baseName}.json`;
-    console.log(jsonS3Key + "before");
-
-    const jsonContent = await fs.promises.readFile(jsonPath, "utf8");
-    console.log(jsonContent);
-
-    /* const controller = new AbortController();
-
-    setTimeout(() => controller.abort(), 10000);
-
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: jsonS3Key,
-        Body: fs.createReadStream(jsonPath),
-        ContentType: "application/json"
-      })
-    ); */
-
-
-    console.log('success'); 
-
+    /* ---------------- 4️⃣ Response ---------------- */
     res.status(200).json({
       message: "Upload successful",
-      audio: audioS3Key,
-      json: jsonS3Key
+      files: {
+        original: `/uploads/recordings/${baseName}.wav`,
+        slowed_8x: `/uploads/recordings/${baseName}_8x.wav`,
+        slowed_16x: `/uploads/recordings/${baseName}_16x.wav`
+      },
+      duration_ms: durationMs
     });
 
   } catch (err) {
@@ -158,6 +137,10 @@ const handleAudioUpload = async (req, res) => {
     });
   }
 };
+
+
+
+
 
 
 
@@ -494,6 +477,36 @@ function createGrid({ fileName, gridIndex, startMs }) {
   };
 }
 
+async function slowAudioSox(inputPath, outputPath, factor) {
+  if (factor === 8) {
+    // 8x slower → allowed directly
+    await execFileAsync("/opt/homebrew/bin/sox", [
+      inputPath,
+      outputPath,
+      "tempo",
+      "0.125"
+    ]);
+    return;
+  }
+
+  if (factor === 16) {
+    // 16x slower → chained tempo (SoX limit safe)
+    await execFileAsync("/opt/homebrew/bin/sox", [
+      inputPath,
+      outputPath,
+      "tempo", "0.5",
+      "tempo", "0.5",
+      "tempo", "0.5",
+      "tempo", "0.5"
+    ]);
+    return;
+  }
+
+  throw new Error(`Unsupported slow factor: ${factor}`);
+}
+
+
+
 
 function generateGridsForAudio({ fileName, durationMs }) {
   const totalGrids = Math.ceil(durationMs / GRID_SIZE_MS);
@@ -629,6 +642,18 @@ async function appendRecordingMetadata({
     "utf8"
   );
 }
+
+
+const convertToWav = async (inputPath, wavPath) => {
+  await execFileAsync("/opt/homebrew/bin/ffmpeg", [
+    "-y",
+    "-i", inputPath,
+    "-ac", "1",
+    "-ar", "48000",
+    wavPath
+  ]);
+};
+
 
 
 
