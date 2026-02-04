@@ -340,7 +340,7 @@ const handleCellUpload = async (req, res) => {
       return res.status(400).json({ message: "cellId missing" });
     }
 
-    if (!req.body || !req.body.cell || !req.body.cell.text) {
+    if (!req.body || !req.body.cell) {
       return res.status(400).json({ message: "invalid body structure" });
     }
 
