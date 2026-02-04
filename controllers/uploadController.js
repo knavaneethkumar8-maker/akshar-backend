@@ -334,7 +334,6 @@ const handleGridUpload = async (req, res) => {
 
 
 
-
 const handleCellUpload = async (req, res) => {
   try {
     if (!req.params.cellId) {
@@ -426,8 +425,6 @@ const handleCellUpload = async (req, res) => {
     res.status(500).json({ message: "Failed to store cell" });
   }
 };
-
-
 
 
 const handleUserTextGridUpload = async (req, res) => {

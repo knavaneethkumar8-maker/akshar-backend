@@ -13,12 +13,19 @@ function parseRecordedAt(value) {
 }
 
 /* helper: get latest textgrid version */
-function getLatestTextgrid(baseName, textgridsDir) {
+function getLatestTextgridBySuffix(baseName, suffix, textgridsDir) {
   if (!fs.existsSync(textgridsDir)) return null;
 
   const files = fs.readdirSync(textgridsDir);
 
-  const regex = new RegExp(`^${baseName}(?:_v(\\d+))?\\.json$`);
+  // examples:
+  // base.json
+  // base_v2.json
+  // base_8x.json
+  // base_8x_v3.json
+  const regex = new RegExp(
+    `^${baseName}${suffix}(?:_v(\\d+))?\\.json$`
+  );
 
   let latestFile = null;
   let maxVersion = 0;
@@ -46,6 +53,7 @@ function getLatestTextgrid(baseName, textgridsDir) {
     return null;
   }
 }
+
 
 /* route */
 router.get("/recordings", (req, res) => {
@@ -77,18 +85,40 @@ router.get("/recordings", (req, res) => {
     )
 
     // 3️⃣ take latest 10
-    .slice(0, 10)
+    .slice(0, 5)
 
     // 4️⃣ attach latest textgrid only
     .map(item => {
       const baseName = path.parse(item.filename).name;
-      const textgrid = getLatestTextgrid(baseName, textgridsDir);
+
+      const textgridNormal = getLatestTextgridBySuffix(
+        baseName,
+        "",
+        textgridsDir
+      );
+
+      const textgrid8x = getLatestTextgridBySuffix(
+        baseName,
+        "_8x",
+        textgridsDir
+      );
+
+      const textgrid16x = getLatestTextgridBySuffix(
+        baseName,
+        "_16x",
+        textgridsDir
+      );
 
       return {
         ...item,
-        textgrid
+        textgrid: {
+          normal: textgridNormal,
+          x8: textgrid8x,
+          x16: textgrid16x
+        }
       };
     });
+
 
   res.json(result);
 });
