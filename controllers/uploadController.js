@@ -7,8 +7,8 @@ const fsPromises = require('fs').promises;
 const { getAudioDurationInSeconds } = require("get-audio-duration");
 const { execFile } = require("child_process");
 const util = require("util");
-
 const execFileAsync = util.promisify(execFile);
+const {binaryPaths, runallPaths} = require('../config/paths');
 
 
 
@@ -63,7 +63,7 @@ const handleAudioUpload = async (req, res) => {
     }
 
     /* ---------------- PATHS ---------------- */
-    const uploadsRoot = path.resolve("uploads");
+    const uploadsRoot = path.resolve(process.cwd(), "uploads");
     const recordingsDir = path.join(uploadsRoot, "recordings");
     fs.mkdirSync(recordingsDir, { recursive: true });
 
@@ -76,8 +76,11 @@ const handleAudioUpload = async (req, res) => {
     const slowed8xPath = path.join(recordingsDir, `${baseName}_8x.wav`);
     const slowed16xPath = path.join(recordingsDir, `${baseName}_16x.wav`);
 
+    /* ---------------- 5️⃣ TEST RUNALL (LOCAL) ---------------- */
+
+
     /* ---------------- 1️⃣ Convert to REAL WAV ---------------- */
-    await execFileAsync("/opt/homebrew/bin/ffmpeg", [
+    await execFileAsync(binaryPaths.local_ffmpegPath, [
       "-y",
       "-i", uploadedPath,
       "-ac", "1",
@@ -91,6 +94,15 @@ const handleAudioUpload = async (req, res) => {
     /* ---------------- 2️⃣ Slowed versions (CORRECT) ---------------- */
     await slowAudioSox(finalWavPath, slowed8xPath, 8);
     await slowAudioSox(finalWavPath, slowed16xPath, 16);
+
+    const runallResult = await callRunAllLocal(
+      finalWavPath,
+      baseName
+    );
+
+    console.log("RUNALL RESULT ↓↓↓");
+    //console.log(runallResult.grids);
+    const mlGrids = runallResult.grids;
 
     /* ---------------- 3️⃣ Duration ---------------- */
     const durationSeconds = await getAudioDurationInSeconds(finalWavPath);
@@ -114,7 +126,7 @@ const handleAudioUpload = async (req, res) => {
     });
 
     await saveAudioJsonToFile({
-      audioJson: { metadata: audioMetadata, grids },
+      audioJson: { metadata: audioMetadata, grids : mlGrids},
       fileName: `${baseName}.wav`
     });
 
@@ -547,7 +559,7 @@ function createGrid({ fileName, gridIndex, startMs }) {
 async function slowAudioSox(inputPath, outputPath, factor) {
   if (factor === 8) {
     // 8x slower → allowed directly
-    await execFileAsync("/opt/homebrew/bin/sox", [
+    await execFileAsync(binaryPaths.local_soxPath, [
       inputPath,
       outputPath,
       "tempo",
@@ -558,7 +570,7 @@ async function slowAudioSox(inputPath, outputPath, factor) {
 
   if (factor === 16) {
     // 16x slower → chained tempo (SoX limit safe)
-    await execFileAsync("/opt/homebrew/bin/sox", [
+    await execFileAsync(binaryPaths.local_soxPath , [
       inputPath,
       outputPath,
       "tempo", "0.5",
@@ -776,6 +788,34 @@ function replaceGridInTextgrid(textgrid, gridId, newGrid) {
   }
   return false;
 }
+
+async function callRunAllLocal(wavPath, audioId) {
+  const response = await fetch(runallPaths.local , {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      wav_path: wavPath,
+      audio_id: audioId
+    })
+  });
+
+  const text = await response.text();
+
+  if (!text) {
+    console.log("RUNALL RESPONSE: <empty>");
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("RUNALL NOT JSON:", text);
+    return null;
+  }
+}
+
 
 
 
