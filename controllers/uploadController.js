@@ -80,7 +80,7 @@ const handleAudioUpload = async (req, res) => {
 
 
     /* ---------------- 1️⃣ Convert to REAL WAV ---------------- */
-    await execFileAsync(binaryPaths.server_ffmpegPath, [
+    await execFileAsync(binaryPaths.local_ffmpegPath, [
       "-y",
       "-i", uploadedPath,
       "-ac", "1",
@@ -301,7 +301,8 @@ const handleGridUpload = async (req, res) => {
     /* ===============================
        2. UPDATE GRID IN TEXTGRID
        =============================== */
-    const audioMatch = gridId.match(/^(audio_.+?)\.wav_/);
+    const audioMatch = gridId.match(/^(.+?)\.wav_/);
+    console.log(audioMatch)
     if (!audioMatch) {
       return res.status(400).json({ message: "Invalid gridId format" });
     }
@@ -392,7 +393,7 @@ const handleCellUpload = async (req, res) => {
     /* ===============================
        2. UPDATE LATEST TEXTGRID
        =============================== */
-    const audioMatch = cellId.match(/^(audio_.+?)\.wav_/);
+    const audioMatch = cellId.match(/^(.+?)\.wav_/);
     if (!audioMatch) {
       return res.status(400).json({ message: "Invalid cellId format" });
     }
@@ -559,7 +560,7 @@ function createGrid({ fileName, gridIndex, startMs }) {
 async function slowAudioSox(inputPath, outputPath, factor) {
   if (factor === 8) {
     // 8x slower → allowed directly
-    await execFileAsync(binaryPaths.server_soxPath, [
+    await execFileAsync(binaryPaths.local_soxPath, [
       inputPath,
       outputPath,
       "tempo",
@@ -570,7 +571,7 @@ async function slowAudioSox(inputPath, outputPath, factor) {
 
   if (factor === 16) {
     // 16x slower → chained tempo (SoX limit safe)
-    await execFileAsync(binaryPaths.server_soxPath , [
+    await execFileAsync(binaryPaths.local_soxPath , [
       inputPath,
       outputPath,
       "tempo", "0.5",
@@ -790,7 +791,7 @@ function replaceGridInTextgrid(textgrid, gridId, newGrid) {
 }
 
 async function callRunAllLocal(wavPath, audioId) {
-  const response = await fetch(runallPaths.server , {
+  const response = await fetch(runallPaths.local , {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
