@@ -80,7 +80,7 @@ const handleAudioUpload = async (req, res) => {
 
 
     /* ---------------- 1️⃣ Convert to REAL WAV ---------------- */
-    await execFileAsync(binaryPaths.local_ffmpegPath, [
+    await execFileAsync(binaryPaths.server_ffmpegPath, [
       "-y",
       "-i", uploadedPath,
       "-ac", "1",
@@ -560,7 +560,7 @@ function createGrid({ fileName, gridIndex, startMs }) {
 async function slowAudioSox(inputPath, outputPath, factor) {
   if (factor === 8) {
     // 8x slower → allowed directly
-    await execFileAsync(binaryPaths.local_soxPath, [
+    await execFileAsync(binaryPaths.server_soxPath, [
       inputPath,
       outputPath,
       "tempo",
@@ -571,7 +571,7 @@ async function slowAudioSox(inputPath, outputPath, factor) {
 
   if (factor === 16) {
     // 16x slower → chained tempo (SoX limit safe)
-    await execFileAsync(binaryPaths.local_soxPath , [
+    await execFileAsync(binaryPaths.server_soxPath , [
       inputPath,
       outputPath,
       "tempo", "0.5",
@@ -791,7 +791,7 @@ function replaceGridInTextgrid(textgrid, gridId, newGrid) {
 }
 
 async function callRunAllLocal(wavPath, audioId) {
-  const response = await fetch(runallPaths.local , {
+  const response = await fetch(runallPaths.server , {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
