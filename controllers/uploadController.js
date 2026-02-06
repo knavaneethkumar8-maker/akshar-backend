@@ -8,7 +8,7 @@ const { getAudioDurationInSeconds } = require("get-audio-duration");
 const { execFile } = require("child_process");
 const util = require("util");
 const execFileAsync = util.promisify(execFile);
-const paths = require('../config/serverPaths');
+const paths = require('../config/localPaths');
 
 
 

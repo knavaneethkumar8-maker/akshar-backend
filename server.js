@@ -10,6 +10,18 @@ const corsOptions = require('./config/corsConfig');
 const logger = require('./middleware/logEvents');
 const session = require('express-session');
 
+const http = require("http");
+const { Server } = require("socket.io");
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "DELETE", "PUT"]
+  }
+});
+
 dotenv.config();
 const PORT = process.env.PORT || 3500;
 
@@ -83,7 +95,33 @@ mongoose.connection.once('open', () => {
   console.log('Server connected to database');
 });
 
-app.listen(PORT, "0.0.0.0",() => {
-  console.log(`Server running in the port ${PORT}`);
+io.on("connection", socket => {
+  console.log("Client connected:", socket.id);
+
+  socket.on("row:status", data => {
+    io.emit("row:status", data);
+    console.log("📡 row:status broadcast", data);
+  });
+
+  socket.on("grid:update", data => {
+    io.emit("grid:update", data);
+  });
+
+  socket.on("cell:lock", data => {
+    io.emit("cell:lock", data);
+  });
+
+  socket.on("grid:lock", data => {
+    io.emit("grid:lock", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
+
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server + WebSocket running on ${PORT}`);
 });
 
