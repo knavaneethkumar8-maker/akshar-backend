@@ -8,7 +8,8 @@ const { getAudioDurationInSeconds } = require("get-audio-duration");
 const { execFile } = require("child_process");
 const util = require("util");
 const execFileAsync = util.promisify(execFile);
-const {binaryPaths, runallPaths} = require('../config/paths');
+const paths = require('../config/serverPaths');
+
 
 
 
@@ -70,6 +71,9 @@ const handleAudioUpload = async (req, res) => {
     const uploadedPath = req.file.path;
     const originalName = req.file.originalname;
     const baseName = path.parse(originalName).name;
+    const username = req.body.username;
+    console.log("USERNAME",username);
+  
 
     const tempWavPath = path.join(recordingsDir, `${baseName}_tmp.wav`);
     const finalWavPath = path.join(recordingsDir, `${baseName}.wav`);
@@ -80,7 +84,7 @@ const handleAudioUpload = async (req, res) => {
 
 
     /* ---------------- 1️⃣ Convert to REAL WAV ---------------- */
-    await execFileAsync(binaryPaths.server_ffmpegPath, [
+    await execFileAsync(paths.ffmpegPath , [
       "-y",
       "-i", uploadedPath,
       "-ac", "1",
@@ -102,6 +106,7 @@ const handleAudioUpload = async (req, res) => {
 
     console.log("RUNALL RESULT ↓↓↓");
     //console.log(runallResult.grids);
+    //console.log(runallResult);
     const mlGrids = runallResult.grids;
 
     /* ---------------- 3️⃣ Duration ---------------- */
@@ -111,7 +116,7 @@ const handleAudioUpload = async (req, res) => {
     await appendRecordingMetadata({
       fileName: `${baseName}.wav`,
       durationSeconds,
-      recorder: "username"
+      recorder: username
     });
 
     const grids = generateGridsForAudio({
@@ -560,7 +565,7 @@ function createGrid({ fileName, gridIndex, startMs }) {
 async function slowAudioSox(inputPath, outputPath, factor) {
   if (factor === 8) {
     // 8x slower → allowed directly
-    await execFileAsync(binaryPaths.server_soxPath, [
+    await execFileAsync(paths.soxPath, [
       inputPath,
       outputPath,
       "tempo",
@@ -571,7 +576,7 @@ async function slowAudioSox(inputPath, outputPath, factor) {
 
   if (factor === 16) {
     // 16x slower → chained tempo (SoX limit safe)
-    await execFileAsync(binaryPaths.server_soxPath , [
+    await execFileAsync(paths.soxPath , [
       inputPath,
       outputPath,
       "tempo", "0.5",
@@ -791,7 +796,8 @@ function replaceGridInTextgrid(textgrid, gridId, newGrid) {
 }
 
 async function callRunAllLocal(wavPath, audioId) {
-  const response = await fetch(runallPaths.server , {
+  console.log('sending request to pipeline');
+  const response = await fetch(paths.runallPath , {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -812,7 +818,7 @@ async function callRunAllLocal(wavPath, audioId) {
   try {
     return JSON.parse(text);
   } catch (e) {
-    console.error("RUNALL NOT JSON:", text);
+    console.error("RUNALL FAIL JSON:", text);
     return null;
   }
 }
