@@ -11,6 +11,7 @@ const execFileAsync = util.promisify(execFile);
 const paths = require('../config/localPaths');
 const axios = require("axios");
 const FormData = require("form-data");
+const {jsonToTextGrid} = require('../middleware/jsonToTextGrid')
 
 
 
@@ -182,13 +183,14 @@ const handleTextGridUpload = async (req, res) => {
     }
 
     const baseName = path.parse(req.params.fileName).name;
-    const uploadDirPath = path.join(__dirname, "..", "uploads", "textgrids");
 
-    // ensure directory exists
-    await fsPromises.mkdir(uploadDirPath, { recursive: true });
+    const uploadJsonDir = path.join(__dirname, "..", "uploads", "textgrids");
+    const uploadTGDir = path.join(__dirname, "..", "uploads", "praat");
 
-    // 🔹 find next version number
-    const files = await fsPromises.readdir(uploadDirPath);
+    await fsPromises.mkdir(uploadJsonDir, { recursive: true });
+    await fsPromises.mkdir(uploadTGDir, { recursive: true });
+
+    const files = await fsPromises.readdir(uploadJsonDir);
     const versionRegex = new RegExp(`^${baseName}(?:_v(\\d+))?\\.json$`);
 
     let maxVersion = 0;
@@ -203,22 +205,29 @@ const handleTextGridUpload = async (req, res) => {
 
     const nextVersion = maxVersion === 0 ? 1 : maxVersion + 1;
 
-    const finalFileName =
-      nextVersion === 1
-        ? `${baseName}.json`
-        : `${baseName}_v${nextVersion}.json`;
+    const finalBase =
+      nextVersion === 1 ? baseName : `${baseName}_v${nextVersion}`;
 
-    const filePath = path.join(uploadDirPath, finalFileName);
+    const jsonFile = `${finalBase}.json`;
+    const tgFile = `${finalBase}.TextGrid`;
 
+    const jsonPath = path.join(uploadJsonDir, jsonFile);
+    const tgPath = path.join(uploadTGDir, tgFile);
+
+    // 🔹 Save JSON
     await fsPromises.writeFile(
-      filePath,
+      jsonPath,
       JSON.stringify(req.body, null, 2),
       "utf8"
     );
 
+    // 🔹 Convert JSON → TextGrid
+    await jsonToTextGrid(jsonPath, tgPath);
+
     /* --------------------------------------------------
        🔹 UPDATE RECORDING STATUS → FINISHED
     -------------------------------------------------- */
+
     const metadataPath = path.join(
       __dirname,
       "..",
@@ -256,8 +265,9 @@ const handleTextGridUpload = async (req, res) => {
     /* -------------------------------------------------- */
 
     res.status(200).json({
-      message: "Textgrid stored successfully",
-      file: finalFileName,
+      message: "Textgrid stored + Praat TextGrid generated",
+      json: jsonFile,
+      textgrid: tgFile,
       version: nextVersion
     });
 
@@ -266,6 +276,7 @@ const handleTextGridUpload = async (req, res) => {
     res.status(500).json({ message: "Failed to store textgrid" });
   }
 };
+
 
 
 const handleGridUpload = async (req, res) => {

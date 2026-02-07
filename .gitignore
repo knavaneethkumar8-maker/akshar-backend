@@ -5,3 +5,4 @@ db/users.json
 temp
 logs
 logs/reqLog.txt
+.DS_Store
