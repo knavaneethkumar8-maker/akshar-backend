@@ -9,6 +9,9 @@ const { execFile } = require("child_process");
 const util = require("util");
 const execFileAsync = util.promisify(execFile);
 const paths = require('../config/localPaths');
+const axios = require("axios");
+const FormData = require("form-data");
+
 
 
 
@@ -99,6 +102,9 @@ const handleAudioUpload = async (req, res) => {
     await slowAudioSox(finalWavPath, slowed8xPath, 8);
     await slowAudioSox(finalWavPath, slowed16xPath, 16);
 
+    const tgResult = await callWav2TG(finalWavPath, "");
+    console.log("TEXTGRID API RESULT:", tgResult.download_url);
+
     const runallResult = await callRunAllLocal(
       finalWavPath,
       originalName
@@ -127,7 +133,9 @@ const handleAudioUpload = async (req, res) => {
     const audioMetadata = buildAudioMetadata({
       fileName: `${baseName}.wav`,
       durationMs,
-      s3Key: null
+      s3Key: null, 
+      tgPath : tgResult.download_url,
+      username
     });
 
     await saveAudioJsonToFile({
@@ -610,19 +618,21 @@ function generateGridsForAudio({ fileName, durationMs }) {
   return grids;
 }
 
-function buildAudioMetadata({ fileName, durationMs, s3Key }) {
+function buildAudioMetadata({ fileName, durationMs, s3Key, tgPath, username }) {
   return {
     audio_id: fileName,
     duration_ms: durationMs,
     grid_size_ms: GRID_SIZE_MS,
     total_grids: Math.ceil(durationMs / GRID_SIZE_MS),
+    recorded_by : username,
     uploaded_at: new Date().toISOString(),
     storage: {
       provider: "s3",
       bucket: process.env.AWS_BUCKET_NAME,
       key: s3Key
     },
-    status : "NEW"
+    status : "NEW",
+    tgPath
   };
 }
 
@@ -822,6 +832,25 @@ async function callRunAllLocal(wavPath, audioId) {
     return null;
   }
 }
+
+async function callWav2TG(wavPath, text = "") {
+  const form = new FormData();
+
+  form.append("audio", fs.createReadStream(wavPath));
+  form.append("text", text);
+
+  const res = await axios.post(
+    "http://127.0.0.1:8002/wav2textgrid",
+    form,
+    {
+      headers: form.getHeaders(),
+      maxBodyLength: Infinity
+    }
+  );
+
+  return res.data;
+}
+
 
 
 
