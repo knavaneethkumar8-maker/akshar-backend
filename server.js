@@ -9,6 +9,8 @@ const cors = require('cors');
 const corsOptions = require('./config/corsConfig');
 const logger = require('./middleware/logEvents');
 const session = require('express-session');
+const fs = require("fs");
+
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -70,9 +72,8 @@ app.use('/auth', require('./routes/auth.js'));
 app.use('/', require('./routes/userUploads.js'));
 app.use("/api/users", require('./routes/getUsers.js'));
 app.use("/api", require('./routes/loadRecordings.js'));
-
-
-
+app.use("/api", require("./routes/loadDownloadFiles.js"));
+app.use("/download", require("./routes/serveDownloadFiles.js"))
 
 
 app.use((err, req, res, next) => {
