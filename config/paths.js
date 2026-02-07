@@ -10,4 +10,9 @@ const runallPaths = {
   local : "http://127.0.0.1:8000/runall"
 }
 
-module.exports = {binaryPaths, runallPaths};
+const wav2tgOrigin = {
+  local : "http://127.0.0.1:8002",
+  server : "https://api.xn--l2bot2c0c.com"
+}
+
+module.exports = {binaryPaths, runallPaths, wav2tgOrigin};

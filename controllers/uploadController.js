@@ -11,7 +11,8 @@ const execFileAsync = util.promisify(execFile);
 const paths = require('../config/localPaths');
 const axios = require("axios");
 const FormData = require("form-data");
-const {jsonToTextGrid} = require('../middleware/jsonToTextGrid')
+const {jsonToTextGrid} = require('../middleware/jsonToTextGrid');
+const {wav2tgOrigin} = require("../config/paths");
 
 
 
@@ -872,7 +873,7 @@ async function callWav2TG(wavPath, text = "") {
   form.append("text", text);
 
   const res = await axios.post(
-    "http://127.0.0.1:8002/wav2textgrid",
+    `${wav2tgOrigin.server}/wav2textgrid`,
     form,
     {
       headers: form.getHeaders(),
