@@ -84,8 +84,6 @@ const handleAudioUpload = async (req, res) => {
     const slowed8xPath = path.join(recordingsDir, `${baseName}_8x.wav`);
     const slowed16xPath = path.join(recordingsDir, `${baseName}_16x.wav`);
 
-    /* ---------------- 5️⃣ TEST RUNALL (LOCAL) ---------------- */
-
 
     /* ---------------- 1️⃣ Convert to REAL WAV ---------------- */
     await execFileAsync(paths.ffmpegPath , [
@@ -104,7 +102,27 @@ const handleAudioUpload = async (req, res) => {
     await slowAudioSox(finalWavPath, slowed16xPath, 16);
 
     const tgResult = await callWav2TG(finalWavPath, "");
-    console.log("TEXTGRID API RESULT:", tgResult.download_url);
+    //console.log("TEXTGRID API RESULT:", tgResult.download_url);
+
+    const tg8x = await callWav2TG(slowed8xPath, "");
+    //console.log("TG 8X:", tg8x.download_url);
+
+    const tg16x = await callWav2TG(slowed16xPath, "");
+    //console.log("TG 16X:", tg16x.download_url);
+    
+    const tgPaths = {
+      tg : tgResult.download_url,
+      tg_8x : tg8x.download_url,
+      tg_16x : tg16x.download_url,
+    }
+
+    const wavPaths = {
+      wav_normal : finalWavPath,
+      wav_8x : slowed8xPath,
+      wav_16x : slowed16xPath
+    }
+    
+    console.log(tgPaths);
 
     const runallResult = await callRunAllLocal(
       finalWavPath,
@@ -123,6 +141,8 @@ const handleAudioUpload = async (req, res) => {
     await appendRecordingMetadata({
       fileName: `${baseName}.wav`,
       durationSeconds,
+      tgPaths,
+      wavPaths,
       recorder: username
     });
 
@@ -163,11 +183,6 @@ const handleAudioUpload = async (req, res) => {
     });
   }
 };
-
-
-
-
-
 
 
 
@@ -222,7 +237,9 @@ const handleTextGridUpload = async (req, res) => {
     );
 
     // 🔹 Convert JSON → TextGrid
-    await jsonToTextGrid(jsonPath, tgPath);
+    if (req.body.skipTextGrid !== true) {
+      await jsonToTextGrid(jsonPath, tgPath);
+    }
 
     /* --------------------------------------------------
        🔹 UPDATE RECORDING STATUS → FINISHED
@@ -713,6 +730,8 @@ function formatDuration(seconds) {
 async function appendRecordingMetadata({
   fileName,
   durationSeconds,
+  tgPaths,
+  wavPaths,
   recorder = "username"
 }) {
   const recordingsDir = path.join(__dirname, "..", "uploads", "recordings");
@@ -736,6 +755,8 @@ async function appendRecordingMetadata({
     duration: formatDuration(durationSeconds),
     recordedAt: new Date().toLocaleString("en-IN"),
     recorder,
+    tgPaths,
+    wavPaths,
     status: "NEW"
   };
 
